@@ -1,0 +1,22 @@
+[project]
+name = "morning-sesangmansa"
+version = "0.1.0"
+description = "매일 아침 AI 뉴스 브리핑 텔레그램 봇"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.128.8",
+    "google-genai>=1.47.0",
+    "pydantic-settings>=2.11.0",
+    "python-dotenv>=1.2.1",
+    "python-telegram-bot>=21.0",
+    "feedparser>=6.0.11",
+    "uvicorn>=0.39.0",
+    "httpx>=0.27.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.24.0",
+]
