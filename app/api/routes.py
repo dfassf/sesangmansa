@@ -36,7 +36,8 @@ async def send_briefing(
     if authorization != expected:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    from app.main import ptb_app
     from app.bot.sender import send_briefing as do_send
 
-    result = await do_send(briefing_type=type)
+    result = await do_send(briefing_type=type, bot=ptb_app.bot)
     return {"status": "sent", "type": type, "recipients": result["recipients"]}

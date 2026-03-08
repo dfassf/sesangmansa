@@ -25,6 +25,10 @@ def _make_update(chat_id: int = 123):
     return SimpleNamespace(effective_chat=SimpleNamespace(id=chat_id), message=message)
 
 
+def _make_context():
+    return SimpleNamespace(bot=AsyncMock())
+
+
 @pytest.mark.asyncio
 async def test_start_command_replies_with_chat_id():
     update = _make_update(chat_id=999)
@@ -53,10 +57,11 @@ async def test_briefing_command_uses_news_before_2pm(monkeypatch):
     send_mock = AsyncMock(return_value={'recipients': 1})
     monkeypatch.setitem(sys.modules, 'app.bot.sender', SimpleNamespace(send_briefing=send_mock))
     update = _make_update()
+    context = _make_context()
 
-    await handlers.briefing_command(update, None)
+    await handlers.briefing_command(update, context)
 
-    send_mock.assert_awaited_once_with('news')
+    send_mock.assert_awaited_once_with('news', bot=context.bot)
     first_msg = update.message.reply_text.await_args_list[0].args[0]
     assert '일반 뉴스 브리핑' in first_msg
 
@@ -67,10 +72,11 @@ async def test_briefing_command_uses_stock_evening_after_2pm(monkeypatch):
     send_mock = AsyncMock(return_value={'recipients': 1})
     monkeypatch.setitem(sys.modules, 'app.bot.sender', SimpleNamespace(send_briefing=send_mock))
     update = _make_update()
+    context = _make_context()
 
-    await handlers.briefing_command(update, None)
+    await handlers.briefing_command(update, context)
 
-    send_mock.assert_awaited_once_with('stock_evening')
+    send_mock.assert_awaited_once_with('stock_evening', bot=context.bot)
 
 
 @pytest.mark.asyncio
@@ -79,8 +85,9 @@ async def test_briefing_command_handles_failure(monkeypatch):
     send_mock = AsyncMock(side_effect=RuntimeError('boom'))
     monkeypatch.setitem(sys.modules, 'app.bot.sender', SimpleNamespace(send_briefing=send_mock))
     update = _make_update()
+    context = _make_context()
 
-    await handlers.briefing_command(update, None)
+    await handlers.briefing_command(update, context)
 
     last_msg = update.message.reply_text.await_args_list[-1].args[0]
     assert '오류가 발생했습니다' in last_msg

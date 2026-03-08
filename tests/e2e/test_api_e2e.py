@@ -72,6 +72,11 @@ def test_send_briefing_e2e_success(monkeypatch):
     sender_module.send_briefing = AsyncMock(return_value={'recipients': 2})
     monkeypatch.setitem(sys.modules, 'app.bot.sender', sender_module)
 
+    dummy_bot = object()
+    app_main = ModuleType('app.main')
+    app_main.ptb_app = SimpleNamespace(bot=dummy_bot)
+    monkeypatch.setitem(sys.modules, 'app.main', app_main)
+
     client = _build_test_client()
     response = client.post(
         '/send-briefing?type=stock_evening',
@@ -84,7 +89,7 @@ def test_send_briefing_e2e_success(monkeypatch):
         'type': 'stock_evening',
         'recipients': 2,
     }
-    sender_module.send_briefing.assert_awaited_once_with(briefing_type='stock_evening')
+    sender_module.send_briefing.assert_awaited_once_with(briefing_type='stock_evening', bot=dummy_bot)
 
 
 def test_send_briefing_rejects_invalid_type_query():

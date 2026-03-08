@@ -1,6 +1,8 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
+from telegram import Bot
+
 from app.config import settings
 from app.news.fetcher import (
     fetch_headlines_via_search,
@@ -32,20 +34,18 @@ def _is_monday() -> bool:
     return datetime.now(KST).weekday() == 0
 
 
-async def _send_text(text: str) -> int:
+async def _send_text(text: str, bot: Bot) -> int:
     """브리핑 텍스트를 모든 chat_id에 전송. 성공 건수 반환."""
-    from app.main import ptb_app
-
     chat_ids = settings.parsed_chat_ids
     sent_count = 0
 
     for chat_id in chat_ids:
         try:
             if len(text) <= 4096:
-                await ptb_app.bot.send_message(chat_id=chat_id, text=text)
+                await bot.send_message(chat_id=chat_id, text=text)
             else:
                 for chunk in _split_message(text, 4096):
-                    await ptb_app.bot.send_message(chat_id=chat_id, text=chunk)
+                    await bot.send_message(chat_id=chat_id, text=chunk)
             sent_count += 1
         except Exception as exc:
             logger.error(f"chat_id={chat_id} 전송 실패: {exc}")
@@ -53,7 +53,7 @@ async def _send_text(text: str) -> int:
     return sent_count
 
 
-async def send_briefing(briefing_type: str = "news") -> dict:
+async def send_briefing(briefing_type: str = "news", *, bot: Bot) -> dict:
     """뉴스 수집 → 요약 → Telegram 전송 파이프라인."""
 
     # 주말: 전체 스킵
@@ -74,7 +74,7 @@ async def send_briefing(briefing_type: str = "news") -> dict:
                 return {"recipients": 0, "error": "no stock headlines"}
             text = await generate_monday_stock_briefing(stock)
 
-        sent_count = await _send_text(text)
+        sent_count = await _send_text(text, bot)
         total = len(settings.parsed_chat_ids)
         logger.info(f"[{briefing_type}] 월요일 주말요약 전송 완료: {sent_count}/{total}")
         return {"recipients": sent_count}
@@ -96,7 +96,7 @@ async def send_briefing(briefing_type: str = "news") -> dict:
             return {"recipients": 0, "error": "no stock headlines"}
         text = await generate_stock_evening_briefing(stock)
 
-    sent_count = await _send_text(text)
+    sent_count = await _send_text(text, bot)
     total = len(settings.parsed_chat_ids)
     logger.info(f"[{briefing_type}] 브리핑 전송 완료: {sent_count}/{total}")
     return {"recipients": sent_count}

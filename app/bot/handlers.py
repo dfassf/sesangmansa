@@ -35,7 +35,7 @@ async def briefing_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         from app.bot.sender import send_briefing
 
-        result = await send_briefing(briefing_type)
+        result = await send_briefing(briefing_type, bot=context.bot)
         if result.get("error"):
             await update.message.reply_text("현재 수집 가능한 뉴스가 없습니다.")
     except Exception as exc:
