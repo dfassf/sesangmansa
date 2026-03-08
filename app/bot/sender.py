@@ -26,12 +26,12 @@ KST = timezone(timedelta(hours=9))
 VALID_TYPES = {"news", "stock_morning", "stock_evening"}
 
 
-def _is_weekend() -> bool:
-    return datetime.now(KST).weekday() in (5, 6)  # 토=5, 일=6
+def _is_weekend(now: datetime | None = None) -> bool:
+    return (now or datetime.now(KST)).weekday() in (5, 6)  # 토=5, 일=6
 
 
-def _is_monday() -> bool:
-    return datetime.now(KST).weekday() == 0
+def _is_monday(now: datetime | None = None) -> bool:
+    return (now or datetime.now(KST)).weekday() == 0
 
 
 async def _send_text(text: str, bot: Bot) -> int:
@@ -53,16 +53,17 @@ async def _send_text(text: str, bot: Bot) -> int:
     return sent_count
 
 
-async def send_briefing(briefing_type: str = "news", *, bot: Bot) -> dict:
+async def send_briefing(briefing_type: str = "news", *, bot: Bot, now: datetime | None = None) -> dict:
     """뉴스 수집 → 요약 → Telegram 전송 파이프라인."""
+    now = now or datetime.now(KST)
 
     # 주말: 전체 스킵
-    if _is_weekend():
+    if _is_weekend(now):
         logger.info(f"[{briefing_type}] 주말 — 스킵")
         return {"recipients": 0, "skipped": "weekend"}
 
     # 월요일: 주말 요약 버전
-    if _is_monday() and briefing_type in ("news", "stock_morning"):
+    if _is_monday(now) and briefing_type in ("news", "stock_morning"):
         if briefing_type == "news":
             headlines = await fetch_monday_news_via_search()
             if not headlines:

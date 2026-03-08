@@ -1,10 +1,33 @@
-import sys
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 from app.bot import sender
+
+KST = timezone(timedelta(hours=9))
+
+# 2026-03-07 토요일, 03-08 일요일, 03-09 월요일, 03-10 화요일
+SATURDAY = datetime(2026, 3, 7, 9, 0, tzinfo=KST)
+MONDAY = datetime(2026, 3, 9, 9, 0, tzinfo=KST)
+TUESDAY = datetime(2026, 3, 10, 9, 0, tzinfo=KST)
+
+
+def test_is_weekend_returns_true_on_saturday():
+    assert sender._is_weekend(SATURDAY) is True
+
+
+def test_is_weekend_returns_false_on_tuesday():
+    assert sender._is_weekend(TUESDAY) is False
+
+
+def test_is_monday_returns_true_on_monday():
+    assert sender._is_monday(MONDAY) is True
+
+
+def test_is_monday_returns_false_on_tuesday():
+    assert sender._is_monday(TUESDAY) is False
 
 
 @pytest.mark.asyncio
@@ -31,69 +54,60 @@ async def test_send_text_splits_long_message(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_send_briefing_weekend_skips(monkeypatch):
-    monkeypatch.setattr(sender, '_is_weekend', lambda: True)
+async def test_send_briefing_weekend_skips():
     bot = AsyncMock()
 
-    result = await sender.send_briefing('news', bot=bot)
+    result = await sender.send_briefing('news', bot=bot, now=SATURDAY)
 
     assert result == {'recipients': 0, 'skipped': 'weekend'}
 
 
 @pytest.mark.asyncio
 async def test_send_briefing_monday_news_path(monkeypatch):
-    monkeypatch.setattr(sender, '_is_weekend', lambda: False)
-    monkeypatch.setattr(sender, '_is_monday', lambda: True)
     monkeypatch.setattr(sender.settings, 'telegram_chat_ids', '1,2,3')
     monkeypatch.setattr(sender, 'fetch_monday_news_via_search', AsyncMock(return_value='헤드라인'))
     monkeypatch.setattr(sender, 'generate_monday_news_briefing', AsyncMock(return_value='요약'))
     monkeypatch.setattr(sender, '_send_text', AsyncMock(return_value=3))
     bot = AsyncMock()
 
-    result = await sender.send_briefing('news', bot=bot)
+    result = await sender.send_briefing('news', bot=bot, now=MONDAY)
 
     assert result == {'recipients': 3}
 
 
 @pytest.mark.asyncio
 async def test_send_briefing_monday_stock_morning_path(monkeypatch):
-    monkeypatch.setattr(sender, '_is_weekend', lambda: False)
-    monkeypatch.setattr(sender, '_is_monday', lambda: True)
     monkeypatch.setattr(sender, 'fetch_monday_stock_via_search', AsyncMock(return_value='stock'))
     monkeypatch.setattr(sender, 'generate_monday_stock_briefing', AsyncMock(return_value='요약'))
     monkeypatch.setattr(sender, '_send_text', AsyncMock(return_value=1))
     bot = AsyncMock()
 
-    result = await sender.send_briefing('stock_morning', bot=bot)
+    result = await sender.send_briefing('stock_morning', bot=bot, now=MONDAY)
 
     assert result == {'recipients': 1}
 
 
 @pytest.mark.asyncio
 async def test_send_briefing_weekday_news_path(monkeypatch):
-    monkeypatch.setattr(sender, '_is_weekend', lambda: False)
-    monkeypatch.setattr(sender, '_is_monday', lambda: False)
     monkeypatch.setattr(sender, 'fetch_headlines_via_search', AsyncMock(return_value='헤드라인'))
     monkeypatch.setattr(sender, 'generate_news_briefing', AsyncMock(return_value='요약'))
     monkeypatch.setattr(sender, '_send_text', AsyncMock(return_value=2))
     bot = AsyncMock()
 
-    result = await sender.send_briefing('news', bot=bot)
+    result = await sender.send_briefing('news', bot=bot, now=TUESDAY)
 
     assert result == {'recipients': 2}
 
 
 @pytest.mark.asyncio
 async def test_send_briefing_weekday_stock_evening_path(monkeypatch):
-    monkeypatch.setattr(sender, '_is_weekend', lambda: False)
-    monkeypatch.setattr(sender, '_is_monday', lambda: False)
     fetch_mock = AsyncMock(return_value='stock')
     monkeypatch.setattr(sender, 'fetch_stock_headlines_via_search', fetch_mock)
     monkeypatch.setattr(sender, 'generate_stock_evening_briefing', AsyncMock(return_value='요약'))
     monkeypatch.setattr(sender, '_send_text', AsyncMock(return_value=4))
     bot = AsyncMock()
 
-    result = await sender.send_briefing('stock_evening', bot=bot)
+    result = await sender.send_briefing('stock_evening', bot=bot, now=TUESDAY)
 
     assert result == {'recipients': 4}
     fetch_mock.assert_awaited_once_with('evening')
