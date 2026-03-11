@@ -10,11 +10,16 @@ from app.expression import generator
 async def test_generate_expression_note_creates_note(monkeypatch):
     gemini_response = MagicMock()
     gemini_response.text = json.dumps({
-        "meaning": "꽤, 상당히라는 뜻입니다.",
-        "example_sentences": ["자못 진지한 표정", "자못 심각한 분위기", "자못 비장한 각오"],
-        "nuance": "되게보다 문어적이고 무게감이 있어요.",
-        "similar_expressions": ["사뭇", "제법"],
-        "usage_tip": "글쓰기에서 쓰면 자연스럽습니다.",
+        "intro": "'매우'나 '되게' 대신 이 표현들을 쓰면 문장에 깊이가 생깁니다.",
+        "expressions": [
+            {"word": "자못", "meaning": "꽤, 상당히", "example": "자못 진지한 표정", "nuance": "문어적이고 무게감"},
+            {"word": "한껏", "meaning": "최대한", "example": "한껏 멋을 부렸다", "nuance": "최대치 강조"},
+            {"word": "사뭇", "meaning": "꽤, 예상 밖으로", "example": "분위기가 사뭇 달랐다", "nuance": "예상과 다른 정도"},
+            {"word": "더없이", "meaning": "더할 나위 없이", "example": "더없이 행복했다", "nuance": "최상급 표현"},
+            {"word": "지극히", "meaning": "매우, 극히", "example": "지극히 개인적인 이야기", "nuance": "극한 강조"},
+        ],
+        "comparison": "자못은 문어적, 한껏은 최대치, 사뭇은 예상 밖, 더없이는 최상급, 지극히는 극한.",
+        "usage_tip": "글에서 '매우'를 반복하지 않으려면 이 표현들을 섞어 쓰세요.",
     })
 
     mock_client = MagicMock()
@@ -29,12 +34,17 @@ async def test_generate_expression_note_creates_note(monkeypatch):
 
     result = await generator.generate_expression_note({
         "id": 1,
-        "expression": "자못",
-        "common_alternative": "꽤/상당히",
+        "base_word": "매우/되게",
+        "expressions": ["자못", "한껏", "사뭇", "더없이", "지극히"],
     })
 
     assert result["status"] == "created"
     assert result["note_id"] == 10
+
+    insert_call = mock_supabase.from_.return_value.insert.call_args[0][0]
+    assert insert_call["cluster_id"] == 1
+    assert insert_call["intro"] == "'매우'나 '되게' 대신 이 표현들을 쓰면 문장에 깊이가 생깁니다."
+    assert len(insert_call["expressions"]) == 5
 
 
 @pytest.mark.asyncio
@@ -48,8 +58,8 @@ async def test_generate_expression_note_handles_empty_response(monkeypatch):
 
     result = await generator.generate_expression_note({
         "id": 1,
-        "expression": "자못",
-        "common_alternative": "꽤",
+        "base_word": "매우/되게",
+        "expressions": ["자못", "한껏", "사뭇", "더없이", "지극히"],
     })
 
     assert result["status"] == "error"

@@ -17,15 +17,15 @@ def _client() -> genai.Client:
     return genai.Client(api_key=settings.gemini_api_key)
 
 
-async def generate_expression_note(topic: dict) -> dict:
-    """표현 노트 생성 → DB 저장.
+async def generate_expression_note(cluster: dict) -> dict:
+    """클러스터 노트 생성 → DB 저장.
 
     Returns:
         {"status": "created"|"error", "note_id": int, ...}
     """
     user_prompt = EXPRESSION_USER_PROMPT.format(
-        expression=topic["expression"],
-        common_alternative=topic["common_alternative"],
+        base_word=cluster["base_word"],
+        expressions=", ".join(cluster["expressions"]),
     )
 
     response = await _client().aio.models.generate_content(
@@ -44,15 +44,14 @@ async def generate_expression_note(topic: dict) -> dict:
 
     supabase = await get_supabase()
     result = await supabase.from_("expr_notes").insert({
-        "topic_id": topic["id"],
-        "meaning": parsed["meaning"],
-        "example_sentences": parsed["example_sentences"],
-        "nuance": parsed["nuance"],
-        "similar_expressions": parsed.get("similar_expressions"),
+        "cluster_id": cluster["id"],
+        "intro": parsed["intro"],
+        "expressions": parsed["expressions"],
+        "comparison": parsed["comparison"],
         "usage_tip": parsed.get("usage_tip"),
     }).execute()
 
     note_id = result.data[0]["id"]
-    logger.info(f"표현 노트 생성 완료: '{topic['expression']}', note_id={note_id}")
+    logger.info(f"표현 클러스터 노트 생성 완료: '{cluster['base_word']}', note_id={note_id}")
 
-    return {"status": "created", "note_id": note_id, "meaning": parsed["meaning"]}
+    return {"status": "created", "note_id": note_id}

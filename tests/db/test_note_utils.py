@@ -41,7 +41,7 @@ class FakeSupabase:
         return self
 
     async def execute(self):
-        if self._eq_key == "topic_id":
+        if self._eq_key in ("topic_id", "cluster_id"):
             return SimpleNamespace(data=self.latest_data)
         if self._eq_key == "id":
             return SimpleNamespace(data=self.by_id_data)

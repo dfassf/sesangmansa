@@ -9,12 +9,13 @@ async def load_latest_note_by_topic(
     table: str,
     select_fields: str,
     topic_id: int,
+    fk_column: str = "topic_id",
 ) -> dict[str, Any] | None:
     result = await (
         supabase
         .from_(table)
         .select(select_fields)
-        .eq("topic_id", topic_id)
+        .eq(fk_column, topic_id)
         .order("created_at", desc=True)
         .limit(1)
         .execute()
@@ -31,12 +32,14 @@ async def load_or_create_note(
     select_fields: str,
     topic: dict[str, Any],
     generate_note: GenerateNoteFn,
+    fk_column: str = "topic_id",
 ) -> tuple[dict[str, Any] | None, str | None]:
     note = await load_latest_note_by_topic(
         supabase,
         table=table,
         select_fields=select_fields,
         topic_id=topic["id"],
+        fk_column=fk_column,
     )
     if note is not None:
         return note, None
