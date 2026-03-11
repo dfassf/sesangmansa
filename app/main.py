@@ -5,7 +5,13 @@ from fastapi import FastAPI
 from telegram.ext import Application, CommandHandler
 
 from app.api.routes import router
-from app.bot.handlers import briefing_command, help_command, start_command
+from app.bot.handlers import (
+    briefing_command,
+    cs_command,
+    expression_command,
+    help_command,
+    start_command,
+)
 from app.config import settings
 
 logging.basicConfig(
@@ -29,6 +35,8 @@ def _create_ptb_app() -> Application:
     )
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("briefing", briefing_command))
+    application.add_handler(CommandHandler("cs", cs_command))
+    application.add_handler(CommandHandler("expression", expression_command))
     application.add_handler(CommandHandler("help", help_command))
     return application
 

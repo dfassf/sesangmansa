@@ -102,3 +102,43 @@ def test_send_briefing_rejects_invalid_type_query():
     )
 
     assert response.status_code == 422
+
+
+def test_send_briefing_accepts_cs_note_type(monkeypatch):
+    settings.scheduler_auth_token = 'scheduler-token'
+    sender_module = ModuleType('app.bot.sender')
+    sender_module.send_briefing = AsyncMock(return_value={'recipients': 1})
+    monkeypatch.setitem(sys.modules, 'app.bot.sender', sender_module)
+
+    app_main = ModuleType('app.main')
+    app_main.ptb_app = SimpleNamespace(bot=object())
+    monkeypatch.setitem(sys.modules, 'app.main', app_main)
+
+    client = _build_test_client()
+    response = client.post(
+        '/send-briefing?type=cs_note',
+        headers={'Authorization': 'Bearer scheduler-token'},
+    )
+
+    assert response.status_code == 200
+    assert response.json()['type'] == 'cs_note'
+
+
+def test_send_briefing_accepts_expression_type(monkeypatch):
+    settings.scheduler_auth_token = 'scheduler-token'
+    sender_module = ModuleType('app.bot.sender')
+    sender_module.send_briefing = AsyncMock(return_value={'recipients': 1})
+    monkeypatch.setitem(sys.modules, 'app.bot.sender', sender_module)
+
+    app_main = ModuleType('app.main')
+    app_main.ptb_app = SimpleNamespace(bot=object())
+    monkeypatch.setitem(sys.modules, 'app.main', app_main)
+
+    client = _build_test_client()
+    response = client.post(
+        '/send-briefing?type=expression',
+        headers={'Authorization': 'Bearer scheduler-token'},
+    )
+
+    assert response.status_code == 200
+    assert response.json()['type'] == 'expression'

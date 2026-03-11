@@ -29,7 +29,7 @@ async def telegram_webhook(
 @router.post("/send-briefing")
 async def send_briefing(
     authorization: str | None = Header(None),
-    type: str = Query("news", pattern="^(news|stock_morning|stock_evening)$"),
+    type: str = Query("news", pattern="^(news|stock_morning|stock_evening|cs_note|expression)$"),
 ):
     """Cloud Scheduler가 호출하는 브리핑 발송 엔드포인트."""
     expected = f"Bearer {settings.scheduler_auth_token}"
