@@ -174,6 +174,73 @@ async def test_send_briefing_cs_note_error_path(monkeypatch):
     assert result == {'recipients': 0, 'error': '토픽 없음'}
 
 
+@pytest.mark.asyncio
+async def test_send_briefing_rejects_invalid_type():
+    bot = AsyncMock()
+
+    result = await sender.send_briefing('invalid', bot=bot, now=TUESDAY)
+
+    assert result == {'recipients': 0, 'error': 'invalid briefing type'}
+
+
+@pytest.mark.asyncio
+async def test_send_briefing_blocks_invalid_briefing_text(monkeypatch):
+    monkeypatch.setattr(sender, 'fetch_headlines_via_search', AsyncMock(return_value='헤드라인'))
+    error_text = '제공된 입력에 뉴스 헤드라인이 없어 큐레이션을 진행할 수 없습니다.'
+    monkeypatch.setattr(sender, 'generate_news_briefing', AsyncMock(return_value=error_text))
+    bot = AsyncMock()
+
+    result = await sender.send_briefing('news', bot=bot, now=TUESDAY)
+
+    assert result == {'recipients': 0, 'error': 'invalid briefing'}
+
+
+@pytest.mark.asyncio
+async def test_send_briefing_handles_fetcher_exception(monkeypatch):
+    monkeypatch.setattr(sender, 'fetch_headlines_via_search', AsyncMock(side_effect=RuntimeError('검색 실패')))
+    bot = AsyncMock()
+
+    result = await sender.send_briefing('news', bot=bot, now=TUESDAY)
+
+    assert result['recipients'] == 0
+    assert 'error' in result
+
+
+@pytest.mark.asyncio
+async def test_send_briefing_weekday_stock_morning_path(monkeypatch):
+    monkeypatch.setattr(sender, 'fetch_stock_headlines_via_search', AsyncMock(return_value='stock'))
+    monkeypatch.setattr(sender, 'generate_stock_morning_briefing', AsyncMock(return_value=FAKE_BRIEFING))
+    monkeypatch.setattr(sender, '_send_text', AsyncMock(return_value=2))
+    bot = AsyncMock()
+
+    result = await sender.send_briefing('stock_morning', bot=bot, now=TUESDAY)
+
+    assert result == {'recipients': 2}
+
+
+@pytest.mark.asyncio
+async def test_send_briefing_expression_error_path(monkeypatch):
+    mock_prepare = AsyncMock(return_value={'error': '표현 없음'})
+    monkeypatch.setattr('app.expression.sender.prepare_expression_briefing', mock_prepare)
+    bot = AsyncMock()
+
+    result = await sender.send_briefing('expression', bot=bot, now=TUESDAY)
+
+    assert result == {'recipients': 0, 'error': '표현 없음'}
+
+
+def test_is_valid_briefing_rejects_short_text():
+    assert sender._is_valid_briefing('짧음') is False
+
+
+def test_is_valid_briefing_rejects_error_keywords():
+    assert sender._is_valid_briefing('x' * 100 + '헤드라인이 없습니다') is False
+
+
+def test_is_valid_briefing_accepts_normal_text():
+    assert sender._is_valid_briefing(FAKE_BRIEFING) is True
+
+
 def test_split_message_prefers_newline_boundaries():
     text = 'abc\n' + ('x' * 20) + '\n' + ('y' * 20)
     chunks = sender._split_message(text, max_length=20)

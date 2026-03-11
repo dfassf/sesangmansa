@@ -91,3 +91,44 @@ async def test_briefing_command_handles_failure(monkeypatch):
 
     last_msg = update.message.reply_text.await_args_list[-1].args[0]
     assert '오류가 발생했습니다' in last_msg
+
+
+@pytest.mark.asyncio
+async def test_cs_command_calls_send_briefing(monkeypatch):
+    send_mock = AsyncMock(return_value={'recipients': 1})
+    monkeypatch.setitem(sys.modules, 'app.bot.sender', SimpleNamespace(send_briefing=send_mock))
+    update = _make_update()
+    context = _make_context()
+
+    await handlers.cs_command(update, context)
+
+    send_mock.assert_awaited_once_with('cs_note', bot=context.bot)
+    first_msg = update.message.reply_text.await_args_list[0].args[0]
+    assert 'CS 노트' in first_msg
+
+
+@pytest.mark.asyncio
+async def test_expression_command_calls_send_briefing(monkeypatch):
+    send_mock = AsyncMock(return_value={'recipients': 1})
+    monkeypatch.setitem(sys.modules, 'app.bot.sender', SimpleNamespace(send_briefing=send_mock))
+    update = _make_update()
+    context = _make_context()
+
+    await handlers.expression_command(update, context)
+
+    send_mock.assert_awaited_once_with('expression', bot=context.bot)
+    first_msg = update.message.reply_text.await_args_list[0].args[0]
+    assert '표현' in first_msg
+
+
+@pytest.mark.asyncio
+async def test_cs_command_handles_failure(monkeypatch):
+    send_mock = AsyncMock(side_effect=RuntimeError('boom'))
+    monkeypatch.setitem(sys.modules, 'app.bot.sender', SimpleNamespace(send_briefing=send_mock))
+    update = _make_update()
+    context = _make_context()
+
+    await handlers.cs_command(update, context)
+
+    last_msg = update.message.reply_text.await_args_list[-1].args[0]
+    assert '오류가 발생했습니다' in last_msg

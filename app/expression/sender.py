@@ -1,5 +1,6 @@
 import logging
 
+from app.db.note_utils import insert_sent_log, load_or_create_note
 from app.db.supabase import get_supabase
 from app.expression.generator import generate_expression_note
 
@@ -12,6 +13,8 @@ CATEGORY_EMOJI = {
     "adverb_connective": "🔗",
     "idiom": "📜",
 }
+
+NOTE_SELECT_FIELDS = "*"
 
 
 async def prepare_expression_briefing() -> dict:
@@ -28,26 +31,20 @@ async def prepare_expression_briefing() -> dict:
         return {"error": "사용 가능한 표현이 없습니다"}
 
     topic = topic_result.data[0]
-
-    # 기존 노트 확인
-    existing = await supabase.from_("expr_notes") \
-        .select("*").eq("topic_id", topic["id"]) \
-        .order("created_at", desc=True).limit(1).execute()
-
-    if existing.data:
-        note = existing.data[0]
-    else:
-        gen_result = await generate_expression_note(topic)
-        if gen_result["status"] != "created":
-            return {"error": gen_result.get("message", "생성 실패")}
-        note_row = await supabase.from_("expr_notes") \
-            .select("*").eq("id", gen_result["note_id"]).single().execute()
-        note = note_row.data
+    note, error = await load_or_create_note(
+        supabase,
+        table="expr_notes",
+        select_fields=NOTE_SELECT_FIELDS,
+        topic=topic,
+        generate_note=generate_expression_note,
+    )
+    if error:
+        return {"error": error}
 
     text = _format_telegram_message(topic, note)
 
     # 발송 로그
-    await supabase.from_("expr_sent_log").insert({"note_id": note["id"]}).execute()
+    await insert_sent_log(supabase, table="expr_sent_log", note_id=note["id"])
 
     return {"text": text, "note_id": note["id"]}
 

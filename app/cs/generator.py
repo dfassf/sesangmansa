@@ -1,9 +1,9 @@
-import json
 import logging
 
 from google import genai
 from google.genai import types
 
+from app.ai.json_response import parse_json_object
 from app.config import settings
 from app.cs.duplicate import check_duplicate
 from app.cs.embedding import generate_embedding
@@ -63,15 +63,9 @@ async def generate_cs_note(topic: dict) -> dict:
             temperature=0.7,
         ),
     )
-    text = response.text
-    if not text:
-        return {"status": "error", "message": "Gemini 빈 응답"}
-
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON 파싱 실패: {e}")
-        return {"status": "error", "message": f"JSON 파싱 실패: {e}"}
+    parsed, parse_error = parse_json_object(response.text)
+    if parse_error:
+        return {"status": "error", "message": parse_error}
 
     # 4. 콘텐츠 임베딩 생성
     embed_text = f"{parsed['content']} {' '.join(parsed.get('key_points', []))}"

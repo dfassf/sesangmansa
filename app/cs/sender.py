@@ -2,6 +2,7 @@ import logging
 
 from app.cs.generator import generate_cs_note
 from app.cs.telegraph import publish_cs_note
+from app.db.note_utils import insert_sent_log, load_or_create_note
 from app.db.supabase import get_supabase
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ DIFFICULTY_LABEL = {
     "advanced": "심화",
 }
 
+NOTE_SELECT_FIELDS = "id, summary, key_points, analogy, quiz"
+
 
 async def prepare_cs_briefing() -> dict:
     """CS 노트 준비: 토픽 선택 → 노트 생성/조회 → Telegraph 발행 → 메시지 구성.
@@ -40,25 +43,17 @@ async def prepare_cs_briefing() -> dict:
         return {"error": "사용 가능한 CS 토픽이 없습니다"}
 
     topic = topic_result.data[0]
+    note, error = await load_or_create_note(
+        supabase,
+        table="cs_notes",
+        select_fields=NOTE_SELECT_FIELDS,
+        topic=topic,
+        generate_note=generate_cs_note,
+    )
+    if error:
+        return {"error": error}
 
-    # 기존 노트 확인
-    existing = await supabase.from_("cs_notes") \
-        .select("id, summary, key_points, analogy, quiz") \
-        .eq("topic_id", topic["id"]) \
-        .order("created_at", desc=True).limit(1).execute()
-
-    if existing.data:
-        note = existing.data[0]
-        note_id = note["id"]
-    else:
-        gen_result = await generate_cs_note(topic)
-        if gen_result["status"] != "created":
-            return {"error": gen_result.get("message", "생성 실패")}
-        note_id = gen_result["note_id"]
-        note_row = await supabase.from_("cs_notes") \
-            .select("id, summary, key_points, analogy, quiz") \
-            .eq("id", note_id).single().execute()
-        note = note_row.data
+    note_id = note["id"]
 
     # Telegraph 발행
     telegraph_url = await publish_cs_note(note_id)
@@ -67,7 +62,7 @@ async def prepare_cs_briefing() -> dict:
     text = _format_telegram_message(topic, note, telegraph_url)
 
     # 발송 로그
-    await supabase.from_("cs_sent_log").insert({"note_id": note_id}).execute()
+    await insert_sent_log(supabase, table="cs_sent_log", note_id=note_id)
 
     return {"text": text, "note_id": note_id}
 

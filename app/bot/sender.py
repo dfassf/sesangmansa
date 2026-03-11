@@ -62,97 +62,120 @@ def _is_valid_briefing(text: str) -> bool:
     return not any(kw in text for kw in _BRIEFING_ERROR_KEYWORDS)
 
 
+async def _build_monday_briefing(briefing_type: str) -> dict:
+    try:
+        if briefing_type == "news":
+            headlines = await fetch_monday_news_via_search()
+            if not headlines:
+                return {"error": "no headlines"}
+            return {"text": await generate_monday_news_briefing(headlines)}
+
+        stock = await fetch_monday_stock_via_search()
+        if not stock:
+            return {"error": "no stock headlines"}
+        return {"text": await generate_monday_stock_briefing(stock)}
+    except Exception as exc:
+        logger.error(f"[{briefing_type}] 월요일 브리핑 생성 실패: {exc}")
+        return {"error": str(exc)}
+
+
+async def _build_weekday_briefing(briefing_type: str) -> dict:
+    try:
+        if briefing_type == "news":
+            headlines = await fetch_headlines_via_search()
+            if not headlines:
+                return {"error": "no headlines"}
+            return {"text": await generate_news_briefing(headlines)}
+
+        if briefing_type == "stock_morning":
+            stock = await fetch_stock_headlines_via_search("morning")
+            if not stock:
+                return {"error": "no stock headlines"}
+            return {"text": await generate_stock_morning_briefing(stock)}
+
+        stock = await fetch_stock_headlines_via_search("evening")
+        if not stock:
+            return {"error": "no stock headlines"}
+        return {"text": await generate_stock_evening_briefing(stock)}
+    except Exception as exc:
+        logger.error(f"[{briefing_type}] 브리핑 생성 실패: {exc}")
+        return {"error": str(exc)}
+
+
+async def _build_learning_briefing(briefing_type: str) -> dict:
+    if briefing_type == "cs_note":
+        from app.cs.sender import prepare_cs_briefing
+
+        result = await prepare_cs_briefing()
+    else:
+        from app.expression.sender import prepare_expression_briefing
+
+        result = await prepare_expression_briefing()
+
+    if result.get("error"):
+        logger.error(f"[{briefing_type}] {result['error']}")
+        return {"error": result["error"]}
+
+    return {"text": result["text"]}
+
+
+async def _send_and_report(
+    briefing_type: str,
+    text: str,
+    bot: Bot,
+    *,
+    success_label: str,
+) -> dict:
+    sent_count = await _send_text(text, bot)
+    total = len(settings.parsed_chat_ids)
+    logger.info(f"[{briefing_type}] {success_label}: {sent_count}/{total}")
+    return {"recipients": sent_count}
+
+
 async def send_briefing(briefing_type: str = "news", *, bot: Bot, now: datetime | None = None) -> dict:
     """뉴스 수집 → 요약 → Telegram 전송 파이프라인."""
     now = now or datetime.now(KST)
+
+    if briefing_type not in VALID_TYPES:
+        return {"recipients": 0, "error": "invalid briefing type"}
 
     # 주말: 뉴스/주식만 스킵 (CS/표현은 매일 전송)
     if _is_weekend(now) and briefing_type in ("news", "stock_morning", "stock_evening"):
         logger.info(f"[{briefing_type}] 주말 — 스킵")
         return {"recipients": 0, "skipped": "weekend"}
 
-    # 월요일: 주말 요약 버전
+    if briefing_type in ("cs_note", "expression"):
+        prepared = await _build_learning_briefing(briefing_type)
+        if prepared.get("error"):
+            return {"recipients": 0, "error": prepared["error"]}
+        return await _send_and_report(
+            briefing_type,
+            prepared["text"],
+            bot,
+            success_label="전송 완료",
+        )
+
     if _is_monday(now) and briefing_type in ("news", "stock_morning"):
-        try:
-            if briefing_type == "news":
-                headlines = await fetch_monday_news_via_search()
-                if not headlines:
-                    return {"recipients": 0, "error": "no headlines"}
-                text = await generate_monday_news_briefing(headlines)
-            else:  # stock_morning
-                stock = await fetch_monday_stock_via_search()
-                if not stock:
-                    return {"recipients": 0, "error": "no stock headlines"}
-                text = await generate_monday_stock_briefing(stock)
-        except Exception as exc:
-            logger.error(f"[{briefing_type}] 월요일 브리핑 생성 실패: {exc}")
-            return {"recipients": 0, "error": str(exc)}
+        prepared = await _build_monday_briefing(briefing_type)
+        success_label = "월요일 주말요약 전송 완료"
+    else:
+        prepared = await _build_weekday_briefing(briefing_type)
+        success_label = "브리핑 전송 완료"
 
-        if not _is_valid_briefing(text):
-            logger.warning(f"[{briefing_type}] 유효하지 않은 브리핑: {text[:100]}")
-            return {"recipients": 0, "error": "invalid briefing"}
+    if prepared.get("error"):
+        return {"recipients": 0, "error": prepared["error"]}
 
-        sent_count = await _send_text(text, bot)
-        total = len(settings.parsed_chat_ids)
-        logger.info(f"[{briefing_type}] 월요일 주말요약 전송 완료: {sent_count}/{total}")
-        return {"recipients": sent_count}
-
-    # CS 노트 / 표현 (주말 포함 매일)
-    if briefing_type == "cs_note":
-        from app.cs.sender import prepare_cs_briefing
-
-        result = await prepare_cs_briefing()
-        if result.get("error"):
-            logger.error(f"[cs_note] {result['error']}")
-            return {"recipients": 0, "error": result["error"]}
-        text = result["text"]
-        sent_count = await _send_text(text, bot)
-        total = len(settings.parsed_chat_ids)
-        logger.info(f"[cs_note] 전송 완료: {sent_count}/{total}")
-        return {"recipients": sent_count}
-
-    if briefing_type == "expression":
-        from app.expression.sender import prepare_expression_briefing
-
-        result = await prepare_expression_briefing()
-        if result.get("error"):
-            logger.error(f"[expression] {result['error']}")
-            return {"recipients": 0, "error": result["error"]}
-        text = result["text"]
-        sent_count = await _send_text(text, bot)
-        total = len(settings.parsed_chat_ids)
-        logger.info(f"[expression] 전송 완료: {sent_count}/{total}")
-        return {"recipients": sent_count}
-
-    # 평일 (화~금 전체 + 월요일 저녁)
-    try:
-        if briefing_type == "news":
-            headlines = await fetch_headlines_via_search()
-            if not headlines:
-                return {"recipients": 0, "error": "no headlines"}
-            text = await generate_news_briefing(headlines)
-        elif briefing_type == "stock_morning":
-            stock = await fetch_stock_headlines_via_search("morning")
-            if not stock:
-                return {"recipients": 0, "error": "no stock headlines"}
-            text = await generate_stock_morning_briefing(stock)
-        else:  # stock_evening
-            stock = await fetch_stock_headlines_via_search("evening")
-            if not stock:
-                return {"recipients": 0, "error": "no stock headlines"}
-            text = await generate_stock_evening_briefing(stock)
-    except Exception as exc:
-        logger.error(f"[{briefing_type}] 브리핑 생성 실패: {exc}")
-        return {"recipients": 0, "error": str(exc)}
-
+    text = prepared["text"]
     if not _is_valid_briefing(text):
         logger.warning(f"[{briefing_type}] 유효하지 않은 브리핑: {text[:100]}")
         return {"recipients": 0, "error": "invalid briefing"}
 
-    sent_count = await _send_text(text, bot)
-    total = len(settings.parsed_chat_ids)
-    logger.info(f"[{briefing_type}] 브리핑 전송 완료: {sent_count}/{total}")
-    return {"recipients": sent_count}
+    return await _send_and_report(
+        briefing_type,
+        text,
+        bot,
+        success_label=success_label,
+    )
 
 
 def _split_message(text: str, max_length: int) -> list[str]:

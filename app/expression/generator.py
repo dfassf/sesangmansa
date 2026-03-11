@@ -1,9 +1,9 @@
-import json
 import logging
 
 from google import genai
 from google.genai import types
 
+from app.ai.json_response import parse_json_object
 from app.config import settings
 from app.db.supabase import get_supabase
 from app.expression.prompts import EXPRESSION_SYSTEM_PROMPT, EXPRESSION_USER_PROMPT
@@ -38,15 +38,9 @@ async def generate_expression_note(topic: dict) -> dict:
         ),
     )
 
-    text = response.text
-    if not text:
-        return {"status": "error", "message": "Gemini 빈 응답"}
-
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON 파싱 실패: {e}")
-        return {"status": "error", "message": f"JSON 파싱 실패: {e}"}
+    parsed, parse_error = parse_json_object(response.text)
+    if parse_error:
+        return {"status": "error", "message": parse_error}
 
     supabase = await get_supabase()
     result = await supabase.from_("expr_notes").insert({
