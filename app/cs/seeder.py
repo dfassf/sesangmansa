@@ -1,14 +1,14 @@
 import logging
 
 from app.cs.curriculum import CURRICULUM
-from app.db.supabase import get_supabase
+from app.db.supabase import get_db
 
 logger = logging.getLogger(__name__)
 
 
 async def seed_cs_topics() -> dict:
     """커리큘럼 데이터를 cs_topics 테이블에 시딩."""
-    supabase = await get_supabase()
+    db = await get_db()
 
     # category+subcategory별 sort_order 부여
     sort_counters: dict[str, int] = {}
@@ -24,7 +24,7 @@ async def seed_cs_topics() -> dict:
             "difficulty": topic["difficulty"],
         })
 
-    result = await supabase.from_("cs_topics").upsert(
+    result = await db.from_("cs_topics").upsert(
         rows,
         on_conflict="title",
         ignore_duplicates=True,

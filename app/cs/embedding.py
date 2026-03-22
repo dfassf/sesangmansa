@@ -19,7 +19,10 @@ async def generate_embedding(text: str) -> list[float]:
     result = await _client().aio.models.embed_content(
         model=EMBEDDING_MODEL,
         contents=text,
-        config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+        config=types.EmbedContentConfig(
+            task_type="RETRIEVAL_DOCUMENT",
+            output_dimensionality=768,
+        ),
     )
     return list(result.embeddings[0].values)
 
@@ -29,6 +32,9 @@ async def generate_query_embedding(text: str) -> list[float]:
     result = await _client().aio.models.embed_content(
         model=EMBEDDING_MODEL,
         contents=text,
-        config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
+        config=types.EmbedContentConfig(
+            task_type="RETRIEVAL_QUERY",
+            output_dimensionality=768,
+        ),
     )
     return list(result.embeddings[0].values)

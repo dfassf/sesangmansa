@@ -12,7 +12,7 @@ from app.cs.prompts import (
     CS_NOTE_USER_PROMPT,
     CS_NOTE_USER_PROMPT_WITH_EXISTING,
 )
-from app.db.supabase import get_supabase
+from app.db.supabase import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def generate_cs_note(topic: dict) -> dict:
 
     # 2. 프롬프트 구성
     if status == "similar" and similar:
-        supabase = await get_supabase()
+        supabase = await get_db()
         existing_titles = []
         for s in similar:
             r = await supabase.from_("cs_notes") \
@@ -72,7 +72,7 @@ async def generate_cs_note(topic: dict) -> dict:
     embedding = await generate_embedding(embed_text)
 
     # 5. DB 저장
-    supabase = await get_supabase()
+    supabase = await get_db()
     result = await supabase.from_("cs_notes").insert({
         "topic_id": topic["id"],
         "content": parsed["content"],

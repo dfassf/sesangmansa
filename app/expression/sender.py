@@ -1,7 +1,7 @@
 import logging
 
 from app.db.note_utils import insert_sent_log, load_or_create_note
-from app.db.supabase import get_supabase
+from app.db.supabase import get_supabase, get_db
 from app.expression.generator import generate_expression_note
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ async def prepare_expression_briefing() -> dict:
         {"text": "...", "note_id": int} or {"error": "..."}
     """
     supabase = await get_supabase()
+    db = await get_db()
 
     cluster_result = await supabase.rpc("pick_next_expression_cluster").execute()
     if not cluster_result.data:
@@ -32,7 +33,7 @@ async def prepare_expression_briefing() -> dict:
 
     cluster = cluster_result.data[0]
     note, error = await load_or_create_note(
-        supabase,
+        db,
         table="expr_notes",
         select_fields=NOTE_SELECT_FIELDS,
         topic=cluster,
@@ -44,7 +45,7 @@ async def prepare_expression_briefing() -> dict:
 
     text = _format_telegram_message(cluster, note)
 
-    await insert_sent_log(supabase, table="expr_sent_log", note_id=note["id"])
+    await insert_sent_log(db, table="expr_sent_log", note_id=note["id"])
 
     return {"text": text, "note_id": note["id"]}
 

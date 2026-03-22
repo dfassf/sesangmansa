@@ -4,8 +4,10 @@ from fastapi import APIRouter, HTTPException, Header, Query, Request
 from telegram import Update
 
 from app.config import settings
+from app.api.admin import router as admin_router
 
 router = APIRouter()
+router.include_router(admin_router)
 logger = logging.getLogger(__name__)
 
 

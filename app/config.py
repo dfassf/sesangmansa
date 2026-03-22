@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Telegraph
     telegraph_access_token: str = ""
 
+    # Admin
+    admin_token: str = ""
+
     model_config = {
         "env_file": str(ENV_FILE),
         "extra": "ignore",

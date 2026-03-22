@@ -18,3 +18,9 @@ async def get_supabase() -> AsyncClient:
         )
         logger.info("Supabase 클라이언트 초기화 완료")
     return _client
+
+
+async def get_db():
+    """sesangmansa 스키마 바인딩된 클라이언트 반환"""
+    client = await get_supabase()
+    return client.schema("sesangmansa")

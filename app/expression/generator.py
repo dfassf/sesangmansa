@@ -5,7 +5,7 @@ from google.genai import types
 
 from app.ai.json_response import parse_json_object
 from app.config import settings
-from app.db.supabase import get_supabase
+from app.db.supabase import get_db
 from app.expression.prompts import EXPRESSION_SYSTEM_PROMPT, EXPRESSION_USER_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -42,8 +42,8 @@ async def generate_expression_note(cluster: dict) -> dict:
     if parse_error:
         return {"status": "error", "message": parse_error}
 
-    supabase = await get_supabase()
-    result = await supabase.from_("expr_notes").insert({
+    db = await get_db()
+    result = await db.from_("expr_notes").insert({
         "cluster_id": cluster["id"],
         "intro": parsed["intro"],
         "expressions": parsed["expressions"],

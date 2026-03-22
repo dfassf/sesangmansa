@@ -1,6 +1,6 @@
 import logging
 
-from app.db.supabase import get_supabase
+from app.db.supabase import get_db
 from app.expression.curriculum import CURRICULUM
 
 logger = logging.getLogger(__name__)
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 async def seed_expression_clusters() -> dict:
     """표현 클러스터 데이터를 expr_clusters 테이블에 시딩."""
-    supabase = await get_supabase()
+    db = await get_db()
 
     sort_counters: dict[str, int] = {}
     rows = []
@@ -23,7 +23,7 @@ async def seed_expression_clusters() -> dict:
             "sort_order": sort_counters[key],
         })
 
-    result = await supabase.from_("expr_clusters").upsert(
+    result = await db.from_("expr_clusters").upsert(
         rows,
         on_conflict="base_word",
         ignore_duplicates=True,

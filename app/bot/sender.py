@@ -33,12 +33,43 @@ def _is_monday(now: datetime | None = None) -> bool:
     return (now or datetime.now(KST)).weekday() == 0
 
 
-async def _send_text(text: str, bot: Bot) -> int:
-    """브리핑 텍스트를 모든 chat_id에 전송. 성공 건수 반환."""
-    chat_ids = settings.parsed_chat_ids
-    sent_count = 0
+async def _get_targets(briefing_type: str) -> list[dict]:
+    """subscriptions 테이블에서 활성 구독 조회. 없으면 env 변수 fallback."""
+    try:
+        from app.db.supabase import get_db
+        db = await get_db()
+        result = await (
+            db
+            .from_("subscriptions")
+            .select("chat_id, bot_token")
+            .eq("active", True)
+            .contains("briefing_types", [briefing_type])
+            .execute()
+        )
+        if result.data:
+            return result.data
+    except Exception as exc:
+        logger.warning(f"subscriptions 조회 실패, env fallback 사용: {exc}")
 
-    for chat_id in chat_ids:
+    return [
+        {"chat_id": cid, "bot_token": settings.telegram_bot_token}
+        for cid in settings.parsed_chat_ids
+    ]
+
+
+async def _send_text(text: str, targets: list[dict], default_bot: Bot) -> int:
+    """브리핑 텍스트를 대상 chat_id에 전송. 성공 건수 반환."""
+    sent_count = 0
+    bot_cache: dict[str, Bot] = {}
+
+    for target in targets:
+        token: str = target["bot_token"]
+        chat_id: int = target["chat_id"]
+
+        if token not in bot_cache:
+            bot_cache[token] = default_bot if token == default_bot.token else Bot(token=token)
+        bot = bot_cache[token]
+
         try:
             if len(text) <= 4096:
                 await bot.send_message(chat_id=chat_id, text=text)
@@ -126,9 +157,9 @@ async def _send_and_report(
     *,
     success_label: str,
 ) -> dict:
-    sent_count = await _send_text(text, bot)
-    total = len(settings.parsed_chat_ids)
-    logger.info(f"[{briefing_type}] {success_label}: {sent_count}/{total}")
+    targets = await _get_targets(briefing_type)
+    sent_count = await _send_text(text, targets, bot)
+    logger.info(f"[{briefing_type}] {success_label}: {sent_count}/{len(targets)}")
     return {"recipients": sent_count}
 
 

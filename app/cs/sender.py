@@ -3,7 +3,7 @@ import logging
 from app.cs.generator import generate_cs_note
 from app.cs.telegraph import publish_cs_note
 from app.db.note_utils import insert_sent_log, load_or_create_note
-from app.db.supabase import get_supabase
+from app.db.supabase import get_supabase, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ async def prepare_cs_briefing() -> dict:
         {"text": "...", "note_id": int} or {"error": "..."}
     """
     supabase = await get_supabase()
+    db = await get_db()
 
     # 다음 토픽 선택
     topic_result = await supabase.rpc("pick_next_cs_topic").execute()
@@ -44,7 +45,7 @@ async def prepare_cs_briefing() -> dict:
 
     topic = topic_result.data[0]
     note, error = await load_or_create_note(
-        supabase,
+        db,
         table="cs_notes",
         select_fields=NOTE_SELECT_FIELDS,
         topic=topic,
@@ -62,7 +63,7 @@ async def prepare_cs_briefing() -> dict:
     text = _format_telegram_message(topic, note, telegraph_url)
 
     # 발송 로그
-    await insert_sent_log(supabase, table="cs_sent_log", note_id=note_id)
+    await insert_sent_log(db, table="cs_sent_log", note_id=note_id)
 
     return {"text": text, "note_id": note_id}
 
