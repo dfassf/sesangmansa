@@ -23,6 +23,11 @@ def _client() -> genai.Client:
     return genai.Client(api_key=settings.gemini_api_key)
 
 
+async def get_supabase():
+    """테스트/호환용 별칭 (schema 바인딩 클라이언트 반환)."""
+    return await get_db()
+
+
 async def generate_cs_note(topic: dict) -> dict:
     """CS 노트 생성 파이프라인: 중복 체크 → 생성 → DB 저장.
 
@@ -38,7 +43,7 @@ async def generate_cs_note(topic: dict) -> dict:
 
     # 2. 프롬프트 구성
     if status == "similar" and similar:
-        supabase = await get_db()
+        supabase = await get_supabase()
         existing_titles = []
         for s in similar:
             r = await supabase.from_("cs_notes") \
@@ -72,7 +77,7 @@ async def generate_cs_note(topic: dict) -> dict:
     embedding = await generate_embedding(embed_text)
 
     # 5. DB 저장
-    supabase = await get_db()
+    supabase = await get_supabase()
     result = await supabase.from_("cs_notes").insert({
         "topic_id": topic["id"],
         "content": parsed["content"],

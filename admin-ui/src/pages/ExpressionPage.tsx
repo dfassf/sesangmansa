@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Descriptions, Drawer, Select, Space, Table, Tag, Typography } from 'antd'
+import { Descriptions, Drawer, Select, Space, Table, Tag, Typography, message } from 'antd'
 import { api } from '../api/client'
 import type { ExprCluster, ExprNote } from '../types'
 
@@ -21,7 +21,7 @@ export default function ExpressionPage() {
   useEffect(() => {
     const params = new URLSearchParams()
     if (category) params.set('category', category)
-    api.get<ExprCluster[]>(`/admin/expr/clusters?${params}`).then(setClusters)
+    api.get<ExprCluster[]>(`/admin/expr/clusters?${params}`).then(setClusters).catch(() => message.error('표현 불러오기 실패'))
   }, [category])
 
   async function onRowClick(cluster: ExprCluster) {

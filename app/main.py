@@ -25,6 +25,14 @@ logger = logging.getLogger("morning-sesangmansa")
 ptb_app: Application | None = None
 
 
+def _register_handlers(application: Application) -> None:
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("briefing", briefing_command))
+    application.add_handler(CommandHandler("cs", cs_command))
+    application.add_handler(CommandHandler("expression", expression_command))
+    application.add_handler(CommandHandler("help", help_command))
+
+
 def _create_ptb_app() -> Application:
     """PTB Application 생성 (webhook 모드: updater=None)."""
     application = (
@@ -33,35 +41,36 @@ def _create_ptb_app() -> Application:
         .updater(None)
         .build()
     )
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("briefing", briefing_command))
-    application.add_handler(CommandHandler("cs", cs_command))
-    application.add_handler(CommandHandler("expression", expression_command))
-    application.add_handler(CommandHandler("help", help_command))
+    _register_handlers(application)
     return application
+
+
+async def _configure_webhook(application: Application) -> None:
+    if not settings.webhook_base_url:
+        logger.warning("WEBHOOK_BASE_URL 미설정 — webhook 등록 건너뜀")
+        return
+
+    webhook_url = f"{settings.webhook_base_url.rstrip('/')}/webhook"
+    try:
+        await application.bot.set_webhook(
+            url=webhook_url,
+            secret_token=settings.telegram_webhook_secret,
+        )
+        logger.info(f"Webhook 설정 완료: {webhook_url}")
+    except Exception as exc:
+        logger.error(f"Webhook 설정 실패 (서버는 정상 기동): {exc}")
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global ptb_app
+    global ptb_app  # 하위 호환용 유지
     ptb_app = _create_ptb_app()
+    _app.state.ptb_app = ptb_app
 
     await ptb_app.initialize()
     await ptb_app.start()
 
-    # Webhook 등록
-    if settings.webhook_base_url:
-        try:
-            webhook_url = f"{settings.webhook_base_url.rstrip('/')}/webhook"
-            await ptb_app.bot.set_webhook(
-                url=webhook_url,
-                secret_token=settings.telegram_webhook_secret,
-            )
-            logger.info(f"Webhook 설정 완료: {webhook_url}")
-        except Exception as exc:
-            logger.error(f"Webhook 설정 실패 (서버는 정상 기동): {exc}")
-    else:
-        logger.warning("WEBHOOK_BASE_URL 미설정 — webhook 등록 건너뜀")
+    await _configure_webhook(ptb_app)
 
     yield
 

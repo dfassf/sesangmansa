@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Badge, Descriptions, Drawer, Select, Space, Table, Tag, Typography } from 'antd'
+import { Badge, Descriptions, Drawer, Select, Space, Table, Tag, Typography, message } from 'antd'
 import { api } from '../api/client'
 import type { CSNote, CSTopic } from '../types'
 
@@ -23,7 +23,7 @@ export default function CSPage() {
     const params = new URLSearchParams()
     if (category) params.set('category', category)
     if (difficulty) params.set('difficulty', difficulty)
-    api.get<CSTopic[]>(`/admin/cs/topics?${params}`).then(setTopics)
+    api.get<CSTopic[]>(`/admin/cs/topics?${params}`).then(setTopics).catch(() => message.error('토픽 불러오기 실패'))
   }, [category, difficulty])
 
   async function onRowClick(topic: CSTopic) {

@@ -33,7 +33,7 @@ def _is_monday(now: datetime | None = None) -> bool:
     return (now or datetime.now(KST)).weekday() == 0
 
 
-async def _get_targets(briefing_type: str) -> list[dict]:
+async def get_targets(briefing_type: str) -> list[dict]:
     """subscriptions 테이블에서 활성 구독 조회. 없으면 env 변수 fallback."""
     try:
         from app.db.supabase import get_db
@@ -57,17 +57,18 @@ async def _get_targets(briefing_type: str) -> list[dict]:
     ]
 
 
-async def _send_text(text: str, targets: list[dict], default_bot: Bot) -> int:
+async def send_text(text: str, targets: list[dict], default_bot: Bot) -> int:
     """브리핑 텍스트를 대상 chat_id에 전송. 성공 건수 반환."""
     sent_count = 0
     bot_cache: dict[str, Bot] = {}
+    default_bot_token = getattr(default_bot, "token", settings.telegram_bot_token)
 
     for target in targets:
         token: str = target["bot_token"]
         chat_id: int = target["chat_id"]
 
         if token not in bot_cache:
-            bot_cache[token] = default_bot if token == default_bot.token else Bot(token=token)
+            bot_cache[token] = default_bot if token == default_bot_token else Bot(token=token)
         bot = bot_cache[token]
 
         try:
@@ -81,6 +82,30 @@ async def _send_text(text: str, targets: list[dict], default_bot: Bot) -> int:
             logger.error(f"chat_id={chat_id} 전송 실패: {exc}")
 
     return sent_count
+
+
+async def _send_text(
+    text: str,
+    bot: Bot,
+    briefing_type: str | None = None,
+    *,
+    targets: list[dict] | None = None,
+) -> int:
+    """테스트/하위 호환용 전송 래퍼.
+
+    - briefing_type/targets가 있으면 subscription 기반 대상에 전송
+    - 둘 다 없으면 환경변수 chat_ids 기반 대상에 전송
+    """
+    resolved_targets = targets
+    if resolved_targets is None:
+        if briefing_type is None:
+            resolved_targets = [
+                {"chat_id": cid, "bot_token": settings.telegram_bot_token}
+                for cid in settings.parsed_chat_ids
+            ]
+        else:
+            resolved_targets = await get_targets(briefing_type)
+    return await send_text(text, resolved_targets, bot)
 
 
 _BRIEFING_ERROR_KEYWORDS = ("큐레이션을 진행할 수 없", "헤드라인이 없", "제공된 입력에", "검색 결과가 없")
@@ -157,8 +182,8 @@ async def _send_and_report(
     *,
     success_label: str,
 ) -> dict:
-    targets = await _get_targets(briefing_type)
-    sent_count = await _send_text(text, targets, bot)
+    targets = await get_targets(briefing_type)
+    sent_count = await _send_text(text, bot, briefing_type, targets=targets)
     logger.info(f"[{briefing_type}] {success_label}: {sent_count}/{len(targets)}")
     return {"recipients": sent_count}
 

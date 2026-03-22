@@ -60,7 +60,7 @@ async def prepare_cs_briefing() -> dict:
     telegraph_url = await publish_cs_note(note_id)
 
     # 텔레그램 메시지 구성
-    text = _format_telegram_message(topic, note, telegraph_url)
+    text = format_telegram_message(topic, note, telegraph_url)
 
     # 발송 로그
     await insert_sent_log(db, table="cs_sent_log", note_id=note_id)
@@ -68,7 +68,7 @@ async def prepare_cs_briefing() -> dict:
     return {"text": text, "note_id": note_id}
 
 
-def _format_telegram_message(
+def format_telegram_message(
     topic: dict, note: dict, telegraph_url: str,
 ) -> str:
     emoji = CATEGORY_EMOJI.get(topic["category"], "📚")
@@ -92,3 +92,28 @@ def _format_telegram_message(
             lines.append(f"  {i + 1}. {opt}")
 
     return "\n".join(lines)
+
+
+def _format_telegram_message(topic: dict, note: dict, telegraph_url: str) -> str:
+    """테스트/하위 호환용 별칭."""
+    return format_telegram_message(topic, note, telegraph_url)
+
+
+async def resend_cs_note(note_id: int, bot) -> int:
+    """특정 note_id를 cs_note 구독자에게 재발송. 발송 수 반환."""
+    from app.bot.sender import get_targets, send_text
+
+    db = await get_db()
+    note_r = await db.from_("cs_notes").select(
+        "id, summary, key_points, analogy, quiz, reading_time_min, cs_topics(title, category, subcategory, difficulty)"
+    ).eq("id", note_id).execute()
+    if not note_r.data:
+        raise ValueError(f"CS note {note_id} not found")
+
+    row = note_r.data[0]
+    topic = row.pop("cs_topics")
+    telegraph_url = await publish_cs_note(note_id)
+    text = format_telegram_message(topic, row, telegraph_url)
+
+    targets = await get_targets("cs_note")
+    return await send_text(text, targets, bot)

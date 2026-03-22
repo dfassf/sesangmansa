@@ -20,6 +20,7 @@ function LogTable({ endpoint }: { endpoint: string }) {
         setItems(r.items)
         setTotal(r.items.length < PAGE_SIZE ? (page - 1) * PAGE_SIZE + r.items.length : page * PAGE_SIZE + 1)
       })
+      .catch(() => message.error('로그 불러오기 실패'))
   }, [endpoint, page])
 
   function handleResend(id: number) {

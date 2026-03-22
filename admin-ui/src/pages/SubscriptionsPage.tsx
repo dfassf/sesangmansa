@@ -21,7 +21,7 @@ export default function SubscriptionsPage() {
     setSubs(data)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load().catch(() => message.error('구독 목록 불러오기 실패')) }, [])
 
   function openCreate() {
     setEditing(null)

@@ -17,6 +17,11 @@ def _client() -> genai.Client:
     return genai.Client(api_key=settings.gemini_api_key)
 
 
+async def get_supabase():
+    """테스트/호환용 별칭 (schema 바인딩 클라이언트 반환)."""
+    return await get_db()
+
+
 async def generate_expression_note(cluster: dict) -> dict:
     """클러스터 노트 생성 → DB 저장.
 
@@ -42,7 +47,7 @@ async def generate_expression_note(cluster: dict) -> dict:
     if parse_error:
         return {"status": "error", "message": parse_error}
 
-    db = await get_db()
+    db = await get_supabase()
     result = await db.from_("expr_notes").insert({
         "cluster_id": cluster["id"],
         "intro": parsed["intro"],

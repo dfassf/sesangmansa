@@ -43,14 +43,14 @@ async def prepare_expression_briefing() -> dict:
     if error:
         return {"error": error}
 
-    text = _format_telegram_message(cluster, note)
+    text = format_telegram_message(cluster, note)
 
     await insert_sent_log(db, table="expr_sent_log", note_id=note["id"])
 
     return {"text": text, "note_id": note["id"]}
 
 
-def _format_telegram_message(cluster: dict, note: dict) -> str:
+def format_telegram_message(cluster: dict, note: dict) -> str:
     emoji = CATEGORY_EMOJI.get(cluster["category"], "📝")
 
     lines = [
@@ -74,3 +74,27 @@ def _format_telegram_message(cluster: dict, note: dict) -> str:
         lines.append(f"💡 {note['usage_tip']}")
 
     return "\n".join(lines)
+
+
+def _format_telegram_message(cluster: dict, note: dict) -> str:
+    """테스트/하위 호환용 별칭."""
+    return format_telegram_message(cluster, note)
+
+
+async def resend_expr_note(note_id: int, bot) -> int:
+    """특정 note_id를 expression 구독자에게 재발송. 발송 수 반환."""
+    from app.bot.sender import get_targets, send_text
+
+    db = await get_db()
+    note_r = await db.from_("expr_notes").select(
+        "id, intro, expressions, comparison, usage_tip, expr_clusters(base_word, category)"
+    ).eq("id", note_id).execute()
+    if not note_r.data:
+        raise ValueError(f"Expression note {note_id} not found")
+
+    row = note_r.data[0]
+    cluster = row.pop("expr_clusters")
+    text = format_telegram_message(cluster, row)
+
+    targets = await get_targets("expression")
+    return await send_text(text, targets, bot)

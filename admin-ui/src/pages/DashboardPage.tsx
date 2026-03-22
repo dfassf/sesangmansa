@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Col, Row, Statistic, Table, Typography } from 'antd'
+import { Card, Col, message, Row, Statistic, Table, Typography } from 'antd'
 import { api } from '../api/client'
 import type { LogItem } from '../types'
 import { BRIEFING_TYPE_LABELS } from '../types'
@@ -12,9 +12,9 @@ export default function DashboardPage() {
   const [subCount, setSubCount] = useState(0)
 
   useEffect(() => {
-    api.get<{ items: LogItem[] }>('/admin/cs/logs?page=1&page_size=5').then(r => setCsLogs(r.items))
-    api.get<{ items: LogItem[] }>('/admin/expr/logs?page=1&page_size=5').then(r => setExprLogs(r.items))
-    api.get<unknown[]>('/admin/subscriptions').then(r => setSubCount(r.length))
+    api.get<{ items: LogItem[] }>('/admin/cs/logs?page=1&page_size=5').then(r => setCsLogs(r.items)).catch(() => message.error('CS 로그 불러오기 실패'))
+    api.get<{ items: LogItem[] }>('/admin/expr/logs?page=1&page_size=5').then(r => setExprLogs(r.items)).catch(() => message.error('표현 로그 불러오기 실패'))
+    api.get<unknown[]>('/admin/subscriptions').then(r => setSubCount(r.length)).catch(() => {})
   }, [])
 
   const todayStr = new Date().toISOString().slice(0, 10)
