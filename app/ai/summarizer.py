@@ -20,7 +20,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.5-flash"
 KST = timezone(timedelta(hours=9))
 
 WEEKDAY_KO = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]

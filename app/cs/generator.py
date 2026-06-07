@@ -16,7 +16,7 @@ from app.db.supabase import get_db
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.5-flash"
 
 
 def _client() -> genai.Client:

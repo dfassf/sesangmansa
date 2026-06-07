@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -7,6 +8,9 @@ from google.genai import types
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 3
+RETRY_DELAY = 10  # 초
 
 KST = timezone(timedelta(hours=9))
 
@@ -59,29 +63,38 @@ def _today() -> str:
 
 
 async def _search_with_prompt(prompt: str, label: str) -> str:
-    try:
-        response = await _client().aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.2,
-                max_output_tokens=4096,
-            ),
-        )
+    last_exc: Exception | None = None
 
-        parts = response.candidates[0].content.parts or []
-        text_parts = [part.text for part in parts if hasattr(part, "text") and part.text]
-        text = "\n".join(text_parts)
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = await _client().aio.models.generate_content(
+                model="gemini-3.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.2,
+                    max_output_tokens=4096,
+                ),
+            )
 
-        if not text:
-            raise ValueError(f"{label} 검색 결과 없음")
+            parts = response.candidates[0].content.parts or []
+            text_parts = [part.text for part in parts if hasattr(part, "text") and part.text]
+            text = "\n".join(text_parts)
 
-        logger.info(f"{label} 헤드라인 수집 완료: {len(text)}자")
-        return text
-    except Exception as exc:
-        logger.error(f"{label} 검색 실패: {exc}")
-        raise
+            if not text:
+                raise ValueError(f"{label} 검색 결과 없음")
+
+            logger.info(f"{label} 헤드라인 수집 완료: {len(text)}자")
+            return text
+        except Exception as exc:
+            last_exc = exc
+            if attempt < MAX_RETRIES:
+                logger.warning(f"{label} 검색 실패 (시도 {attempt}/{MAX_RETRIES}), {RETRY_DELAY}초 후 재시도: {exc}")
+                await asyncio.sleep(RETRY_DELAY)
+            else:
+                logger.error(f"{label} 검색 최종 실패 ({MAX_RETRIES}회 시도): {exc}")
+
+    raise last_exc
 
 
 async def fetch_headlines_via_search() -> str:
